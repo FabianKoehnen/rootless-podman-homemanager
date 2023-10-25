@@ -37,7 +37,7 @@ let
                 };
 
                 environmentFiles = mkOption {
-                    type = with types; listOf path;
+                    type = with types; listOf (nullOr path);
                     default = [];
                     description = lib.mdDoc "Environment files for this container.";
                     example = literalExpression ''
@@ -49,7 +49,7 @@ let
                 };
 
                 volumes = mkOption {
-                    type = with types; listOf str;
+                    type = with types; listOf (nullOr str);
                     default = [];
                     description = lib.mdDoc ''
                         List of volumes to attach to this container.
@@ -70,8 +70,8 @@ let
                 };
 
                 sopsSecrets = mkOption {
-                    type = with types; listOf str;
-                    default = {};
+                    type = with types; listOf (nullOr str);
+                    default = [];
                     description = lib.mdDoc "sops Secrets to configure for sops and set for this container.";
                     example = literalExpression ''
                         [
@@ -189,7 +189,8 @@ let
             inherit name;
             inherit value;
 
-            mappedPodName = "podman_pod_${podName}.service";
+            mappedPodName = "podman_pod_${podName}";
+            PodServiceName = "${mappedPodName}.service";
             
             secretsSet =  foldl (acc: entry: acc++[{name=lib.last (builtins.split "/" entry); path=entry;}]) [] value.sopsSecrets;
             ServiceExecStartPre = concatStringsSep "\\\n"
@@ -226,8 +227,8 @@ let
                 Documentation="man:podman-generate-systemd(1)";
                 Wants=["network-online.target"];
                 RequiresMountsFor="%t/containers";
-                BindsTo=mappedPodName;
-                After=["network-online.target" mappedPodName];
+                BindsTo=PodServiceName;
+                After=["network-online.target" PodServiceName];
             };
             Service = {
                 ExecStart=''
