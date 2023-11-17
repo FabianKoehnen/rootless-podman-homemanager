@@ -1,6 +1,6 @@
 {
   outputs = _: {
-    nixosModules.default = import "./default.nix";
+    homeManagerModules.default = import ./default.nix;
   };
 }
 
