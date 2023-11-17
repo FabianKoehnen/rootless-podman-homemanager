@@ -117,6 +117,16 @@ let
                         ]
                     '';
                 };
+                network = mkOption {
+                    type = with types; nullOr str;
+                    description = lib.mdDoc ''
+                        see https://docs.podman.io/en/latest/markdown/podman-pod-create.1.html#network-mode-net
+                    '';
+                    example = literalExpression ''
+                        slirp4netns
+                    '';
+                    
+                };
                 containers = mkOption {
                     type = with types; attrsOf (types.submodule containerOptions);
                     default = {};
@@ -133,11 +143,16 @@ let
             inherit value;
             inherit mappedName;
 
-            portsString = foldl (entry: acc: entry+" "+acc) "" value.ports;
             containers = map (containerName: "container-"+name+"-"+containerName+".service") ((attrNames value.containers));
+
+            portsString = foldl (entry: acc: entry+" "+acc) "" value.ports;
+            podOptionsList = [
+                "-p${portsString}"
+            ];
+            podOptions = concatMapStrings (x: " " + x) podOptionsList;
         in
             {
-                Unit = {
+                Unit = { 
                     Description="Podman ${mappedName}.service";
                     Documentation="man:podman-generate-systemd(1)";
                     RequiresMountsFor="/tmp/containers-user-${cfg.uid}/containers";
@@ -157,7 +172,7 @@ let
                             --infra-conmon-pidfile %t/${mappedName}.pid \
                             --pod-id-file %t/${mappedName}.pod-id \
                             --exit-policy=stop \
-                            -p${portsString} ${mappedName}
+                            ${podOptions} ${mappedName}
                     '';
                     ExecStart=''
                         ${pkgs.podman}/bin/podman pod start \
