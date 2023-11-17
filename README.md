@@ -17,7 +17,7 @@ __Note:__ Currently it is only supported to use containers which are part of a p
       modules = [
         ./configuration.nix
         home-manager.sharedModules = [
-            inputs.rootless-podman-homeManager.homeManagerModules.default
+            rootless-podman-homeManager.homeManagerModules.default
         ];
       ];
     };
