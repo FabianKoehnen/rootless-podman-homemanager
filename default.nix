@@ -145,14 +145,16 @@ let
 
             containers = map (containerName: "container-"+name+"-"+containerName+".service") ((attrNames value.containers));
 
-            portsString = foldl (entry: acc: entry+" "+acc) "" value.ports;
-            podOptionsList = [
-                "-p${portsString}"
-            ];
-            podOptions = concatMapStrings (x: " " + x) podOptionsList;
+            portsString = foldl (entry: acc: entry+" -p"+acc) "" value.ports;
+
+            podStartOptionsList = lib.lists.optional (0 < builtins.length(value.ports)) "${portsString}" ++ 
+                lib.lists.optional (isString (value.network)) "--net=${value.network}"
+            ;
+
+            podStartOptions = concatMapStrings (x: " " + x) podStartOptionsList;
         in
             {
-                Unit = { 
+                Unit = {
                     Description="Podman ${mappedName}.service";
                     Documentation="man:podman-generate-systemd(1)";
                     RequiresMountsFor="/tmp/containers-user-${cfg.uid}/containers";
@@ -169,10 +171,10 @@ let
                     TimeoutStopSec="70";
                     ExecStartPre=''
                         ${pkgs.podman}/bin/podman pod create \
-                            --infra-conmon-pidfile %t/${mappedName}.pid \
-                            --pod-id-file %t/${mappedName}.pod-id \
+                            --infra-conmon-pidfile=%t/${mappedName}.pid \
+                            --pod-id-file=%t/${mappedName}.pod-id \
                             --exit-policy=stop \
-                            ${podOptions} ${mappedName}
+                            ${podStartOptions} ${mappedName}
                     '';
                     ExecStart=''
                         ${pkgs.podman}/bin/podman pod start \
@@ -206,7 +208,14 @@ let
 
             mappedPodName = "podman_pod_${podName}";
             PodServiceName = "${mappedPodName}.service";
+
+            volumesOptionString = foldl (entry: acc: entry+" -v"+acc) "" value.volumes;
+
+            containerStartOptionsList = lib.lists.optional (0 < builtins.length(value.volumes)) "${volumesOptionString}";
+            containerStartOptions = concatMapStrings (x: " " + x) containerStartOptionsList;
             
+
+
             secretsSet =  foldl (acc: entry: acc++[{name=lib.last (builtins.split "/" entry); path=entry;}]) [] value.sopsSecrets;
             ServiceExecStartPre = concatStringsSep "\\\n"
                 (
@@ -255,6 +264,7 @@ let
                         --sdnotify=conmon \
                         --replace \
                         --detach \
+                        ${containerStartOptions} \
                         ${ServiceExecStartSecrets} \
                         ${ServiceExecStartEnvs} \
                         --name ${podName}_${name} ${value.image}
