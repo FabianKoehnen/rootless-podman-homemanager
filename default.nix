@@ -158,9 +158,9 @@ let
                     Description="Podman ${mappedName}.service";
                     Documentation="man:podman-generate-systemd(1)";
                     RequiresMountsFor="/tmp/containers-user-${cfg.uid}/containers";
-                    Wants=["network-online.target"] ++ containers;
+                    Wants=["network-online.target" "podman.socket"] ++ containers;
                     Before=containers;
-                    After=["network-online.target"];
+                    After=["network-online.target" "podman.socket"];
                 };
                 Service = {
                     Environment=[
