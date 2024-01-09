@@ -80,6 +80,11 @@ let
                         ]
                     '';
                 };
+
+                extraArgs = mkOption {
+                    type = with types; listOf (nullOr str);
+                    default = [];
+                };
             };
         };
 
@@ -134,6 +139,11 @@ let
                         Rootless containers to run as systemd services.
                     '';
                 };
+
+                extraArgs = mkOption {
+                    type = with types; listOf (nullOr str);
+                    default = [];
+                };
             };
         };
 
@@ -148,7 +158,8 @@ let
             portsString = foldl (entry: acc: entry+" -p"+acc) "" value.ports;
 
             podStartOptionsList = lib.lists.optional (0 < builtins.length(value.ports)) "${portsString}" ++ 
-                lib.lists.optional (isString (value.network)) "--net=${value.network}"
+                lib.lists.optional (isString (value.network)) "--net=${value.network}" ++ 
+                value.extraArgs
             ;
 
             podStartOptions = concatMapStrings (x: " " + x) podStartOptionsList;
@@ -211,7 +222,9 @@ let
 
             volumesOptionString = foldl (entry: acc: entry+" -v"+acc) "" value.volumes;
 
-            containerStartOptionsList = lib.lists.optional (0 < builtins.length(value.volumes)) "${volumesOptionString}";
+            containerStartOptionsList = lib.lists.optional (0 < builtins.length(value.volumes)) "${volumesOptionString}" ++
+                value.extraArgs
+            ;
             containerStartOptions = concatMapStrings (x: " " + x) containerStartOptionsList;
             
 
