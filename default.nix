@@ -72,7 +72,7 @@ let
                 sopsSecrets = mkOption {
                     type = with types; listOf (nullOr str);
                     default = [];
-                    description = lib.mdDoc "sops Secrets to configure for sops and set for this container.";
+                    description = lib.mdDoc "sops secret names to set as env var via podman secrets";
                     example = literalExpression ''
                         [
                             container/database/MARIADB_USER
@@ -124,6 +124,7 @@ let
                 };
                 network = mkOption {
                     type = with types; nullOr str;
+                    default = "slirp4netns";
                     description = lib.mdDoc ''
                         see https://docs.podman.io/en/latest/markdown/podman-pod-create.1.html#network-mode-net
                     '';
