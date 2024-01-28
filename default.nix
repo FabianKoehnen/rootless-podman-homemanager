@@ -172,7 +172,7 @@ let
                     RequiresMountsFor="/tmp/containers-user-${cfg.uid}/containers";
                     Wants=["network-online.target" "podman.socket"] ++ containers;
                     Before=containers;
-                    After=["network-online.target" "podman.socket"];
+                    After=["network-online.target" "podman.socket" "sops-nix.service"];
                 };
                 Service = {
                     Environment=[
@@ -289,11 +289,11 @@ let
                         --cidfile=%t/%n.ctr-id
                 '';
                 ExecStopPost=''
-                    ${pkgs.podman}/bin/podman rm \
+                    ${pkgs.bash}/bin/bash -c "${pkgs.podman}/bin/podman rm \
                         -f \
                         --ignore -t 10 \
                         --cidfile=%t/%n.ctr-id; \
-                        ${ExecStopPostSecrets}
+                        ${ExecStopPostSecrets}"
                 '';
                 Environment=[
                     "PATH=/bin:/sbin:/nix/var/nix/profiles/default/bin:/run/wrappers/bin"
@@ -301,7 +301,7 @@ let
                 ];
                 Restart="on-failure";
                 TimeoutStopSec="70";
-                ExecStartPre=ServiceExecStartPre;
+                ExecStartPre=''${pkgs.bash}/bin/bash -c "''+ServiceExecStartPre+''"'';
                 Type="notify";
                 NotifyAccess="all";
             };
