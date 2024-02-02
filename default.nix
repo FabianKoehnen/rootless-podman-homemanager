@@ -4,7 +4,55 @@ with lib;
 let
     cfg = config.virtualisation.rootless-podman;
     
+    sopsSecretType = 
+        { ... }: {
+            options = {
+                type = lib.mkOption {
+                    type = lib.types.enum [ "mount" "env"];
+                    default = "env";
+                    description = ''
+                        How the secret is exposed to the container. 
+                        mount mounts the secret into the container as a file. 
+                        env exposes the secret as an environment variable. 
+                        Defaults to env.
+                    '';
+                };
+                target = lib.mkOption {
+                    type = with types; nullOr str;
+                    default = null;
+                    description = ''
 
+                        Target of secret. For mounted secrets, this is the path to the secret inside the container. 
+                        If a fully qualified path is provided, the secret is mounted at that location. 
+                        Otherwise, the secret is mounted to /run/secrets/target for linux containers or /var/run/secrets/target for freebsd containers. 
+                        If the target is not set, the secret is mounted to /run/secrets/secretname by default. 
+                        For env secrets, this is the environment variable key. Defaults to secretname.
+                    '';
+                };
+                uid = lib.mkOption {
+                    type = with types; nullOr str;
+                    default = null;
+                    description = ''
+                        UID of secret. Defaults to 0. Mount secret type only.
+                    '';
+                };
+                gid = lib.mkOption {
+                    type = with types; nullOr str;
+                    default = null;
+                    description = ''
+                        GID of secret. Defaults to 0. Mount secret type only.
+                    '';
+                };
+                mode = lib.mkOption {
+                    type = with types; nullOr str;
+                    default = null;
+                    description = ''
+                        Mode of secret. Defaults to 0444. Mount secret type only.
+                    '';
+                };
+            };
+    };
+    
     containerOptions =
         { ... }: {
             
@@ -70,14 +118,15 @@ let
                 };
 
                 sopsSecrets = mkOption {
-                    type = with types; listOf (nullOr str);
-                    default = [];
+                    type = with types; attrsOf (types.submodule sopsSecretType);
+                    default = {};
                     description = lib.mdDoc "sops secret names to set as env var via podman secrets";
                     example = literalExpression ''
-                        [
-                            container/database/MARIADB_USER
-                            container/database/MARIADB_PASSWORD
-                        ]
+                        {
+                            "container/database/MARIADB_ROOT_PASSWORD" = {
+
+                            };
+                        }
                     '';
                 };
 
@@ -230,7 +279,7 @@ let
             
 
 
-            secretsSet =  foldl (acc: entry: acc++[{name=lib.last (builtins.split "/" entry); path=entry;}]) [] value.sopsSecrets;
+            secretsSet =  foldl (acc: entry: acc++[{name=lib.last (builtins.split "/" entry); path=entry;}]) [] (builtins.attrNames value.sopsSecrets);
             ServiceExecStartPre = concatStringsSep "\\\n"
                 (
                     concatMap (
@@ -240,9 +289,24 @@ let
 
             ServiceExecStartSecrets = concatStringsSep "\\\n" 
                 (
-                    concatMap (
-                        x: [ "--secret ${x.name},type=env,target=${x.name}" ]
-                    ) secretsSet
+                    attrsets.mapAttrsToList (
+                        name: value: (
+                            let
+                                shortendName = lib.last (builtins.split "/" name);
+                            in
+                            assert !(value.type != "mount" && value.gid != null) || throw  "you can only use gid with the mount type. error in secret ${name}";
+                            assert !(value.type != "mount" && value.uid != null) || throw  "you can only use uid with the mount type. error in secret ${name}";
+                            assert !(value.type != "mount" && value.mode != null) || throw  "you can only use mode with the mount type. error in secret ${name}";
+
+                            if (builtins.length (builtins.attrNames (lib.attrsets.filterAttrs (name: value: name != "type" && value != null) value))) == 0 then 
+                                "--secret ${shortendName},type=env,target=${shortendName}"
+                            else 
+                                "--secret ${shortendName},type=${(value.type or ''env'')},target=${(value.target or shortendName)}"+
+                                lib.strings.optionalString (value.gid != null) ",uid=${value.uid}"+
+                                lib.strings.optionalString (value.gid != null) ",gid=${value.gid}"+
+                                lib.strings.optionalString (value.gid != null) ",uid=${value.mode}"
+                        )
+                    ) value.sopsSecrets
                 );
 
             ServiceExecStartEnvs = concatStringsSep "\\\n"
